@@ -1,0 +1,20 @@
+{
+  "name": "silent-ward",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "双人恐怖躲猫猫 · 寂静病房",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "shot": "node tools/shot.mjs",
+    "floorplan": "node tools/floorplan.mjs"
+  },
+  "dependencies": {
+    "three": "0.169.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

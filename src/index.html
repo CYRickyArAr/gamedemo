@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>寂静病房 · SILENT WARD</title>
+<style>
+  :root {
+    --ink: #cfc8bb;
+    --dim: #7c776d;
+    --blood: #9d2f24;
+    --teal: #5d8d89;
+    --bg: #07090a;
+    --panel: rgba(9, 12, 13, 0.82);
+    --line: rgba(160, 150, 132, 0.16);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--ink);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+  #app { position: fixed; inset: 0; }
+  #app canvas { display: block; width: 100%; height: 100%; }
+
+  /* 全局胶片/暗角覆层 */
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    background:
+      radial-gradient(ellipse at 50% 48%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.55) 100%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0 1px, rgba(0,0,0,0) 1px 3px);
+    mix-blend-mode: multiply;
+  }
+  #fade { position: fixed; inset: 0; background: #000; pointer-events: none; z-index: 60; opacity: 1; transition: opacity 1.4s ease; }
+  #fade.clear { opacity: 0; }
+
+  .screen {
+    position: fixed; inset: 0; z-index: 40;
+    display: flex; align-items: center; justify-content: center;
+    background:
+      radial-gradient(ellipse at 50% 40%, rgba(24, 32, 34, 0.55), rgba(0,0,0,0.94) 70%),
+      #050707;
+  }
+  .hidden { display: none !important; }
+  .fade-in { animation: fadeIn 0.9s ease both; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .panel {
+    width: min(520px, calc(100vw - 48px));
+    padding: 42px 40px 34px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 40px 90px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.04);
+    position: relative;
+  }
+  .panel::before {
+    content: ""; position: absolute; inset: 10px;
+    border: 1px solid rgba(160,150,132,0.07); pointer-events: none;
+  }
+  .kicker {
+    font-size: 10px; letter-spacing: 0.42em; color: var(--dim);
+    text-transform: uppercase; margin-bottom: 14px;
+  }
+  h1 {
+    margin: 0 0 6px; font-family: Georgia, "Songti SC", "STSong", serif;
+    font-weight: 400; font-size: 46px; letter-spacing: 0.16em; color: #e6ddcc;
+    text-shadow: 0 0 40px rgba(157, 47, 36, 0.28);
+  }
+  .sub { color: var(--dim); font-size: 12.5px; letter-spacing: 0.18em; margin-bottom: 36px; }
+  label { display: block; margin-bottom: 16px; }
+  label span { display: block; font-size: 10.5px; letter-spacing: 0.28em; color: var(--dim); margin-bottom: 8px; }
+  input {
+    width: 100%; padding: 12px 14px; background: rgba(0,0,0,0.45);
+    border: 1px solid var(--line); color: var(--ink);
+    font-family: "SF Mono", "Menlo", monospace; font-size: 15px; letter-spacing: 0.18em;
+    outline: none; transition: border-color 0.25s, box-shadow 0.25s;
+  }
+  input:focus { border-color: rgba(157,47,36,0.6); box-shadow: 0 0 0 3px rgba(157,47,36,0.08); }
+  button {
+    width: 100%; margin-top: 10px; padding: 14px 18px;
+    background: linear-gradient(180deg, rgba(157,47,36,0.92), rgba(112,30,23,0.92));
+    border: 1px solid rgba(210,120,105,0.25); color: #f3e9dc;
+    font-size: 13px; letter-spacing: 0.34em; cursor: pointer;
+    transition: filter 0.2s, transform 0.1s;
+  }
+  button:hover { filter: brightness(1.18); }
+  button:active { transform: translateY(1px); }
+  .hint { margin-top: 18px; font-size: 11px; line-height: 1.8; color: var(--dim); letter-spacing: 0.05em; }
+  .code-big {
+    font-family: "SF Mono", Menlo, monospace; font-size: 42px; letter-spacing: 0.35em;
+    color: #e8dfcf; margin: 18px 0 4px; text-align: center;
+  }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; z-index: 20; pointer-events: none; font-family: "SF Mono", Menlo, monospace; }
+  #crosshair {
+    position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px;
+    border-radius: 50%; background: rgba(220, 214, 200, 0.55); box-shadow: 0 0 6px rgba(0,0,0,0.9);
+    transition: transform 0.15s, background 0.2s;
+  }
+  #crosshair.hot { transform: scale(2.2); background: rgba(200, 70, 55, 0.95); }
+  .hud-top {
+    position: absolute; top: 22px; left: 0; right: 0; display: flex; align-items: flex-start;
+    justify-content: space-between; padding: 0 28px;
+  }
+  #objective { font-size: 11.5px; line-height: 1.9; letter-spacing: 0.16em; color: rgba(214,205,190,0.85); text-shadow: 0 1px 4px #000; }
+  #objective b { color: #d8cbb4; font-weight: 400; }
+  #timer { font-size: 22px; letter-spacing: 0.22em; color: rgba(226,216,198,0.9); text-shadow: 0 0 20px rgba(0,0,0,0.9); }
+  #timer.low { color: #d0574a; animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.45; } }
+  .hud-bottom { position: absolute; left: 28px; bottom: 26px; display: flex; flex-direction: column; gap: 10px; }
+  .meter { display: flex; align-items: center; gap: 10px; font-size: 9.5px; letter-spacing: 0.3em; color: var(--dim); }
+  .bar { width: 170px; height: 3px; background: rgba(255,255,255,0.09); overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 100%; background: rgba(150, 175, 168, 0.8); transform-origin: left; transition: transform 0.12s linear; }
+  #stamina-bar > i { background: rgba(168, 152, 112, 0.85); }
+  .hud-right { position: absolute; right: 28px; bottom: 26px; text-align: right; }
+  #emf { opacity: 0; transition: opacity 0.3s; font-size: 10px; letter-spacing: 0.26em; color: var(--dim); }
+  #emf.on { opacity: 1; }
+  #emf .reading { font-size: 26px; letter-spacing: 0.1em; color: #c9dedb; margin-top: 6px; text-shadow: 0 0 18px rgba(120,190,180,0.35); }
+  #emf-bars { display: flex; gap: 3px; justify-content: flex-end; margin-top: 6px; }
+  #emf-bars i { width: 12px; height: 4px; background: rgba(255,255,255,0.08); }
+  #emf-bars i.on { background: #86b8b0; box-shadow: 0 0 8px rgba(134,184,176,0.7); }
+  #prompt {
+    position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: 0.22em; color: rgba(220,212,196,0.9);
+    background: rgba(5,7,8,0.6); border: 1px solid var(--line); padding: 8px 16px;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  #prompt.on { opacity: 1; }
+  #hide-confirm {
+    position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%);
+    pointer-events: auto; width: auto; padding: 11px 26px; font-size: 11px;
+    letter-spacing: 0.3em; margin: 0;
+  }
+  #dmg {
+    position: fixed; inset: 0; z-index: 15; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(120,0,0,0) 30%, rgba(120,0,0,0.55) 100%);
+    transition: opacity 0.25s;
+  }
+
+  #overlay {
+    position: fixed; inset: 0; z-index: 50; pointer-events: none;
+    background: #e9e5dc; opacity: 0; transition: opacity 0.5s ease;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #overlay .msg {
+    font-family: Georgia, "Songti SC", serif; font-size: 20px; letter-spacing: 0.5em;
+    color: #1b1b18; opacity: 0; transition: opacity 0.5s;
+  }
+  #overlay.on { opacity: 1; }
+  #overlay.on .msg { opacity: 1; }
+
+  #toast {
+    position: fixed; left: 50%; top: 84px; transform: translateX(-50%);
+    z-index: 45; background: rgba(8,10,11,0.82); border: 1px solid var(--line);
+    color: var(--ink); font-size: 11.5px; letter-spacing: 0.2em; padding: 10px 20px;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+  }
+  #toast.on { opacity: 1; }
+
+  #result h1 { font-size: 40px; }
+  #result .reason { color: var(--dim); font-size: 12px; letter-spacing: 0.2em; margin: 14px 0 30px; }
+  #result .names { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); letter-spacing: 0.16em; margin-bottom: 26px; }
+  #result button { width: auto; padding: 13px 34px; float: right; }
+
+  #settings-note {
+    position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 30; font-size: 9.5px;
+    letter-spacing: 0.18em; color: rgba(150,145,132,0.5); font-family: "SF Mono", monospace;
+    pointer-events: none; white-space: nowrap;
+  }
+  .keys { margin-top: 22px; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 10.5px; color: var(--dim); letter-spacing: 0.08em; }
+  .keys kbd { font-family: "SF Mono", monospace; color: #b9b1a2; border: 1px solid var(--line); padding: 1px 6px; font-size: 10px; }
+  @media (max-width: 640px) {
+    h1 { font-size: 34px; letter-spacing: 0.1em; }
+    .panel { padding: 30px 24px; }
+  }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="vignette"></div>
+  <div id="dmg"></div>
+  <div id="settings-note">G 画质 · F 手电 · E 躲藏 · SHIFT 冲刺 · 右键 探测</div>
+
+  <!-- 大厅 -->
+  <div id="lobby" class="screen">
+    <div class="panel fade-in">
+      <div class="kicker">Two-Player Horror · Hide &amp; Seek</div>
+      <h1>寂静病房</h1>
+      <div class="sub">SILENT WARD — 你躲进我的病房，我躲进你的</div>
+      <label><span>房间码</span><input id="code" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="留空自动生成" /></label>
+      <label><span>你的名字</span><input id="name" maxlength="16" autocomplete="off" placeholder="无名的病人" /></label>
+      <button id="join">进 入 病 房</button>
+      <div class="hint" id="lobby-hint">两人输入同一个房间码即可同房。躲好之后确认，双方会交换地图。</div>
+      <div class="keys">
+        <kbd>WASD</kbd><span>移动</span>
+        <kbd>SHIFT</kbd><span>冲刺（消耗体力，会引来鬼）</span>
+        <kbd>E</kbd><span>躲进柜子 / 离开</span>
+        <kbd>F</kbd><span>手电筒（暴露自己）</span>
+        <kbd>右键</kbd><span>举起 EMF 探测器找人</span>
+        <kbd>R</kbd><span>躲藏阶段确认位置</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 等待 -->
+  <div id="waiting" class="screen hidden">
+    <div class="panel" style="text-align:center">
+      <div class="kicker">Waiting</div>
+      <h1 style="font-size:30px">病房已分配</h1>
+      <div class="sub" style="margin-bottom:6px">把房间码告诉另一个人</div>
+      <div class="code-big" id="wait-code">----</div>
+      <div class="hint" id="wait-status">等待另一位病人进入…</div>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="crosshair"></div>
+    <div class="hud-top">
+      <div id="objective"></div>
+      <div id="timer">--:--</div>
+    </div>
+    <div class="hud-bottom">
+      <div class="meter"><span>体力</span><div class="bar" id="stamina-bar"><i></i></div></div>
+    </div>
+    <div class="hud-right">
+      <div id="emf">
+        <div>EMF LEVEL</div>
+        <div class="reading" id="emf-reading">1.0</div>
+        <div id="emf-bars"></div>
+      </div>
+    </div>
+    <div id="prompt"></div>
+    <button id="hide-confirm" class="hidden">按 R 就位</button>
+  </div>
+
+  <!-- 结算 -->
+  <div id="result" class="screen hidden">
+    <div class="panel">
+      <div class="kicker" id="result-kicker">Round Over</div>
+      <h1 id="result-title">被找到了</h1>
+      <div class="reason" id="result-reason"></div>
+      <div class="names"><span id="result-you"></span><span id="result-peer"></span></div>
+      <button id="again">再 来 一 局</button>
+      <div style="clear:both"></div>
+    </div>
+  </div>
+
+  <div id="overlay"><div class="msg" id="overlay-msg"></div></div>
+  <div id="toast"></div>
+  <div id="fade"></div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/vendor/three.module.js",
+        "three/addons/": "/vendor/addons/"
+      }
+    }
+  </script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
